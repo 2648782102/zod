@@ -1276,8 +1276,23 @@ export const $ZodCustomStringFormat: core.$constructor<$ZodCustomStringFormat> =
   (inst, def): void => {
     $ZodStringFormat.init(inst, def);
     inst._zod.check = (payload) => {
-      if (def.fn(payload.value)) return;
-
+      const result = def.fn(payload.value);
+      // a promise is truthy, so it has to be awaited rather than read as a pass
+      if (result instanceof Promise) {
+        return result.then((valid) => {
+          if (!valid) {
+            payload.issues.push({
+              code: "invalid_format",
+              format: def.format,
+              input: payload.value,
+              inst,
+              continue: !def.abort,
+            });
+          }
+          return undefined;
+        });
+      }
+      if (result) return undefined;
       payload.issues.push({
         code: "invalid_format",
         format: def.format,
@@ -1285,6 +1300,7 @@ export const $ZodCustomStringFormat: core.$constructor<$ZodCustomStringFormat> =
         inst,
         continue: !def.abort,
       });
+      return undefined;
     };
   }
 );
